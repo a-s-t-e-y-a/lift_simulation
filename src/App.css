@@ -1,0 +1,61 @@
+#lift {
+  width: 50px;
+  height: 80px;
+  background: white;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  margin: 2px;
+  top: -90px;
+}
+#left-door,
+#right-door {
+  width: 50%;
+  height: 100%;
+  background: wheat;
+  border-right: 1px solid black;
+  border-left: 1px solid black;
+  top: 0;
+  position: absolute;
+  transition: transform 2.5s ease-in-out;
+}
+#right-door {
+  right: 0;
+  transform-origin: right;
+}
+
+#left-door {
+  left: 0;
+  transform-origin: left;
+}
+
+#lift.open #left-door {
+  transform: translateX(-100%);
+}
+
+#lift.open #right-door {
+  transform: translateX(100%);
+}
+#floor-set-up {
+  border-bottom: 2px solid gray;
+  padding: 12px;
+  display: flex;
+  justify-items: center;
+  justify-content: space-between;
+  align-items: center;
+  height: 68px;
+  position: relative;
+}
+
+@media (max-width: 500px) {
+  #liftMainDiv {
+    display: flex;
+    margin-left: 20%;
+  }
+}
+@media (min-width: 768px) {
+  #liftMainDiv {
+    display: flex;
+    margin-left: 8%;
+  }
+}
