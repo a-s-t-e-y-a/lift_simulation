@@ -36,6 +36,7 @@ function LiftSimulation() {
       transitionTime: 0,
       transitioning: false,
       doorsOpen: false,
+      doorState: "closed",
     }));
     setLifts(liftArray);
   };
@@ -64,7 +65,11 @@ function LiftSimulation() {
         `Lift ${index} distance to floor ${requestedFloor}: ${distance}`,
       );
 
-      if (distance < minDistance && !lift.transitioning) {
+      if (
+        distance < minDistance &&
+        !lift.transitioning &&
+        lift.doorState === "closed"
+      ) {
         minDistance = distance;
         closestLiftIndex = index;
       }
@@ -82,6 +87,11 @@ function LiftSimulation() {
       setLifts((prevLifts) => {
         const newLifts = [...prevLifts];
         const lift = newLifts[liftIndex];
+
+        if (lift.doorState !== "closed") {
+          console.log(`Lift ${liftIndex} doors are not closed. Cannot move.`);
+          return prevLifts;
+        }
 
         console.log(`Updating lift ${liftIndex} with new values.`);
         console.log(
@@ -123,24 +133,45 @@ function LiftSimulation() {
               ...updatedLifts[liftIndex],
               transitioning: false,
               currentFloor: lift.chooseFloor,
-              doorsOpen: true,
+              doorState: "opening",
             };
             return updatedLifts;
           });
 
-          // Set a timeout to close the doors after 5 seconds (2.5s open + 2.5s close)
-          const doorTimeoutId = setTimeout(() => {
+          setTimeout(() => {
             setLifts((prevLifts) => {
               const updatedLifts = [...prevLifts];
               updatedLifts[liftIndex] = {
                 ...updatedLifts[liftIndex],
-                doorsOpen: false,
+                doorState: "open",
               };
               return updatedLifts;
             });
-          }, 5000);
 
-          doorTimeouts.current[liftIndex] = doorTimeoutId;
+            const doorTimeoutId = setTimeout(() => {
+              setLifts((prevLifts) => {
+                const updatedLifts = [...prevLifts];
+                updatedLifts[liftIndex] = {
+                  ...updatedLifts[liftIndex],
+                  doorState: "closing",
+                };
+                return updatedLifts;
+              });
+
+              setTimeout(() => {
+                setLifts((prevLifts) => {
+                  const updatedLifts = [...prevLifts];
+                  updatedLifts[liftIndex] = {
+                    ...updatedLifts[liftIndex],
+                    doorState: "closed",
+                  };
+                  return updatedLifts;
+                });
+              }, 2500);
+            }, 2500);
+
+            doorTimeouts.current[liftIndex] = doorTimeoutId;
+          }, 2500);
         }, transitionTimeout);
 
         transitionTimeouts.current[liftIndex] = timeoutId;
@@ -201,7 +232,7 @@ function LiftSimulation() {
           <div key={index}>
             <div
               id="lift"
-              className={lift.doorsOpen ? "open" : ""}
+              className={lift.doorState !== "closed" ? "open" : ""}
               style={{
                 top: `${lift.liftposition}px`,
                 transition: `top ${lift.transitionTime}s ease-in-out`,
