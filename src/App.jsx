@@ -1,49 +1,159 @@
-import React, { useState } from "react"; // Import useState from React
+import React, { useState, useRef, useEffect } from "react";
 import "./App.css";
 
-function Lift() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div>
-      <div id="lift" className={isOpen ? "open" : ""}>
-        <div id="left-door"></div>
-        <div id="right-door"></div>
-      </div>
-    </div>
-  );
-}
-
-function Floors({ index }) {
-  return (
-    <div id="floor-set-up">
-      <div>
-        <div>{index !== 0 ? <button>Up</button> : <></>}</div>
-
-        <div>
-          <button>Down</button>
-        </div>
-      </div>
-      <div>{index + 1}</div>
-    </div>
-  );
-}
-
-function App() {
+function LiftSimulation() {
   const [floors, setFloors] = useState("");
-  const [lifts, setLifts] = useState("");
+  const [numLifts, setNumLifts] = useState("");
+  const [lifts, setLifts] = useState([]);
+  const [maxLifts, setMaxLifts] = useState(1);
+  const transitionTimeouts = useRef({});
+  const doorTimeouts = useRef({});
+  const liftMainDivRef = useRef(null);
+
+  useEffect(() => {
+    const updateMaxLifts = () => {
+      if (liftMainDivRef.current) {
+        const liftMainDivWidth = liftMainDivRef.current.offsetWidth;
+        const singleLiftWidth = 70;
+        const maxLiftsFit = Math.floor(liftMainDivWidth / singleLiftWidth);
+        setMaxLifts(maxLiftsFit);
+      }
+    };
+
+    updateMaxLifts();
+    window.addEventListener("resize", updateMaxLifts);
+
+    return () => window.removeEventListener("resize", updateMaxLifts);
+  }, []);
+
+  const initializeLifts = (numLifts) => {
+    console.log(`Initializing lifts with ${numLifts} lifts.`);
+    const liftArray = Array.from({ length: numLifts }, () => ({
+      chooseFloor: 0,
+      type_: null,
+      liftposition: -101,
+      currentFloor: 0,
+      transitionTime: 0,
+      transitioning: false,
+      doorsOpen: false,
+    }));
+    setLifts(liftArray);
+  };
 
   const handleFloorChange = (e) => {
-    setFloors(Number(e.target.value)); // Convert to number
+    const floorValue = Math.max(0, Number(e.target.value));
+    console.log(`Floor input changed to: ${floorValue}`);
+    setFloors(floorValue);
   };
 
   const handleLiftsChange = (e) => {
-    setLifts(Number(e.target.value)); // Convert to number
+    const liftsValue = Math.min(Math.max(0, Number(e.target.value)), maxLifts);
+    console.log(`Lifts input changed to: ${liftsValue}`);
+    setNumLifts(liftsValue);
+    initializeLifts(liftsValue);
   };
 
-  // Create an array of floor indices and reverse it
+  const findOptimalLift = (requestedFloor) => {
+    console.log(`Finding optimal lift for requested floor: ${requestedFloor}`);
+    let closestLiftIndex = null;
+    let minDistance = Infinity;
+
+    lifts.forEach((lift, index) => {
+      const distance = Math.abs(lift.currentFloor - requestedFloor);
+      console.log(
+        `Lift ${index} distance to floor ${requestedFloor}: ${distance}`,
+      );
+
+      if (distance < minDistance && !lift.transitioning) {
+        minDistance = distance;
+        closestLiftIndex = index;
+      }
+    });
+
+    console.log(`Optimal lift index: ${closestLiftIndex}`);
+    return closestLiftIndex;
+  };
+
+  const handleChange = (floor, type) => {
+    console.log(`Handling change. Floor: ${floor}, Type: ${type}`);
+    const liftIndex = findOptimalLift(floor);
+
+    if (liftIndex !== null) {
+      setLifts((prevLifts) => {
+        const newLifts = [...prevLifts];
+        const lift = newLifts[liftIndex];
+
+        console.log(`Updating lift ${liftIndex} with new values.`);
+        console.log(
+          `Current Floor: ${lift.currentFloor}, Choose Floor: ${floor + 1}`,
+        );
+
+        lift.chooseFloor = floor + 1;
+        lift.type_ = type;
+        lift.liftposition = -lift.chooseFloor * 101;
+        lift.transitionTime =
+          Math.abs(lift.currentFloor - lift.chooseFloor) * 2.5;
+        lift.transitioning = true;
+
+        console.log(
+          `Lift ${liftIndex} position updated to: ${lift.liftposition}`,
+        );
+        console.log(
+          `Lift ${liftIndex} transition time set to: ${lift.transitionTime}s`,
+        );
+
+        const transitionTimeout = lift.transitionTime * 1000;
+        console.log(
+          `Timeout for lift ${liftIndex} started, waiting ${transitionTimeout} ms`,
+        );
+
+        if (transitionTimeouts.current[liftIndex]) {
+          clearTimeout(transitionTimeouts.current[liftIndex]);
+        }
+
+        if (doorTimeouts.current[liftIndex]) {
+          clearTimeout(doorTimeouts.current[liftIndex]);
+        }
+
+        const timeoutId = setTimeout(() => {
+          console.log(`Timeout for lift ${liftIndex} completed`);
+          setLifts((prevLifts) => {
+            const updatedLifts = [...prevLifts];
+            updatedLifts[liftIndex] = {
+              ...updatedLifts[liftIndex],
+              transitioning: false,
+              currentFloor: lift.chooseFloor,
+              doorsOpen: true,
+            };
+            return updatedLifts;
+          });
+
+          // Set a timeout to close the doors after 5 seconds (2.5s open + 2.5s close)
+          const doorTimeoutId = setTimeout(() => {
+            setLifts((prevLifts) => {
+              const updatedLifts = [...prevLifts];
+              updatedLifts[liftIndex] = {
+                ...updatedLifts[liftIndex],
+                doorsOpen: false,
+              };
+              return updatedLifts;
+            });
+          }, 5000);
+
+          doorTimeouts.current[liftIndex] = doorTimeoutId;
+        }, transitionTimeout);
+
+        transitionTimeouts.current[liftIndex] = timeoutId;
+
+        return newLifts;
+      });
+    } else {
+      console.log("No available lift found for the requested floor.");
+    }
+  };
+
   const array = Array.from({ length: floors }, (_, index) => index);
-  const reversedArray = [...array].reverse(); // Create a reversed copy
+  const reversedArray = array.reverse();
 
   return (
     <>
@@ -54,25 +164,52 @@ function App() {
           id="floors"
           type="number"
           value={floors}
+          min="0"
           placeholder="Number of floors"
         />
         <input
           onChange={handleLiftsChange}
           id="lifts"
           type="number"
-          value={lifts}
-          placeholder="Number of lifts"
+          value={numLifts}
+          min="0"
+          max={maxLifts}
+          placeholder={`Number of lifts (max ${maxLifts})`}
         />
       </div>
+
       <div>
         {reversedArray.map((info) => (
-          <Floors key={info} index={info} />
+          <div key={info} id="floor-set-up">
+            <div>
+              <div>
+                {info !== 0 && (
+                  <button onClick={() => handleChange(info, "UP")}>Up</button>
+                )}
+              </div>
+              <div>
+                <button onClick={() => handleChange(info, "DOWN")}>Down</button>
+              </div>
+            </div>
+            <div>{info + 1}</div>
+          </div>
         ))}
       </div>
-      <div id="liftMainDiv">
-        {Array.from({ length: lifts }, (_, index) => (
-          <div key={index} style={{ margin: "1px" }}>
-            <Lift />
+
+      <div id="liftMainDiv" ref={liftMainDivRef}>
+        {lifts.map((lift, index) => (
+          <div key={index}>
+            <div
+              id="lift"
+              className={lift.doorsOpen ? "open" : ""}
+              style={{
+                top: `${lift.liftposition}px`,
+                transition: `top ${lift.transitionTime}s ease-in-out`,
+              }}
+            >
+              <div id="left-door"></div>
+              <div id="right-door"></div>
+            </div>
           </div>
         ))}
       </div>
@@ -80,4 +217,4 @@ function App() {
   );
 }
 
-export default App;
+export default LiftSimulation;

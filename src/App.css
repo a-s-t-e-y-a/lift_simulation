@@ -1,12 +1,13 @@
 #lift {
-  width: 50px;
-  height: 80px;
+  width: 60px;
+  height: 100px;
   background: white;
   display: flex;
   position: relative;
   overflow: hidden;
-  margin: 2px;
-  top: -90px;
+  z-index: 3;
+  margin-left: 2px;
+  top: -101px;
 }
 #left-door,
 #right-door {
@@ -15,7 +16,6 @@
   background: wheat;
   border-right: 1px solid black;
   border-left: 1px solid black;
-  top: 0;
   position: absolute;
   transition: transform 2.5s ease-in-out;
 }
@@ -37,13 +37,12 @@
   transform: translateX(100%);
 }
 #floor-set-up {
-  border-bottom: 2px solid gray;
-  padding: 12px;
+  border-bottom: 1px solid gray;
   display: flex;
   justify-items: center;
   justify-content: space-between;
   align-items: center;
-  height: 68px;
+  height: 100px;
   position: relative;
 }
 
