@@ -355,17 +355,6 @@ function LiftSimulation() {
           </div>
         ))}
       </div>
-
-      <div>
-        <h2>Request Queue</h2>
-        <ul>
-          {requestQueue.map((request, index) => (
-            <li key={index}>
-              Floor: {request.floor + 1}, Type: {request.type}
-            </li>
-          ))}
-        </ul>
-      </div>
     </>
   );
 }
