@@ -92,86 +92,191 @@ function LiftSimulation() {
   const processNextRequest = () => {
     if (requestQueue.length > 0) {
       const nextRequest = requestQueue[0];
-      const liftIndex = findOptimalLift(nextRequest.floor);
+      const availableLiftIndex = findOptimalLift(nextRequest.floor);
 
-      if (liftIndex !== null) {
+      if (availableLiftIndex !== null) {
         setRequestQueue((prevQueue) => prevQueue.slice(1));
-        moveLift(liftIndex, nextRequest.floor, nextRequest.type);
+        setTimeout(() => {
+          moveLift(availableLiftIndex, nextRequest.floor, nextRequest.type);
+        }, 2500);
       }
     }
   };
 
   const moveLift = (liftIndex, floor, type) => {
+    console.log(
+      `Initiating moveLift for lift ${liftIndex}, floor ${floor}, type ${type}`,
+    );
+
     setLifts((prevLifts) => {
       const newLifts = [...prevLifts];
       const lift = newLifts[liftIndex];
 
+      console.log(`Current lift state before movement:`, lift);
+
       lift.chooseFloor = floor + 1;
       lift.type_ = type;
-      lift.liftposition = -lift.chooseFloor * 101;
-      lift.transitionTime =
-        Math.abs(lift.currentFloor - lift.chooseFloor) * 2.5;
       lift.transitioning = true;
 
+      // Clear any existing timeouts
       if (transitionTimeouts.current[liftIndex]) {
         clearTimeout(transitionTimeouts.current[liftIndex]);
+        console.log(`Cleared transition timeout for lift ${liftIndex}`);
       }
 
       if (doorTimeouts.current[liftIndex]) {
         clearTimeout(doorTimeouts.current[liftIndex]);
+        console.log(`Cleared door timeout for lift ${liftIndex}`);
       }
 
-      const transitionTimeout = lift.transitionTime * 1000;
-      const timeoutId = setTimeout(() => {
-        setLifts((prevLifts) => {
-          const updatedLifts = [...prevLifts];
-          updatedLifts[liftIndex] = {
-            ...updatedLifts[liftIndex],
-            transitioning: false,
-            currentFloor: lift.chooseFloor,
-            doorState: "opening",
-          };
-          return updatedLifts;
-        });
+      // First, close the doors if they're open
+      if (lift.doorState !== "closed") {
+        console.log(`Lift ${liftIndex} doors are not closed, closing doors...`);
+        lift.doorState = "closing";
 
         setTimeout(() => {
+          console.log(`Doors closed for lift ${liftIndex}`);
           setLifts((prevLifts) => {
             const updatedLifts = [...prevLifts];
-            updatedLifts[liftIndex] = {
-              ...updatedLifts[liftIndex],
-              doorState: "open",
-            };
+            updatedLifts[liftIndex].doorState = "closed";
             return updatedLifts;
           });
 
-          const doorTimeoutId = setTimeout(() => {
+          // After doors are closed, start moving the lift
+          setTimeout(() => {
+            console.log(`Lift ${liftIndex} is moving to floor ${floor}`);
             setLifts((prevLifts) => {
               const updatedLifts = [...prevLifts];
-              updatedLifts[liftIndex] = {
-                ...updatedLifts[liftIndex],
-                doorState: "closing",
-              };
+              const currentLift = updatedLifts[liftIndex];
+              currentLift.liftposition = -currentLift.chooseFloor * 101;
+              currentLift.transitionTime =
+                Math.abs(currentLift.currentFloor - currentLift.chooseFloor) *
+                2.5;
               return updatedLifts;
             });
 
-            setTimeout(() => {
+            const transitionTimeout = lift.transitionTime * 1000;
+            const timeoutId = setTimeout(() => {
+              console.log(`Lift ${liftIndex} reached floor ${floor}`);
               setLifts((prevLifts) => {
                 const updatedLifts = [...prevLifts];
                 updatedLifts[liftIndex] = {
                   ...updatedLifts[liftIndex],
-                  doorState: "closed",
+                  transitioning: false,
+                  currentFloor: lift.chooseFloor,
+                  doorState: "opening",
                 };
                 return updatedLifts;
               });
+
+              setTimeout(() => {
+                console.log(`Lift ${liftIndex} doors are opening`);
+                setLifts((prevLifts) => {
+                  const updatedLifts = [...prevLifts];
+                  updatedLifts[liftIndex] = {
+                    ...updatedLifts[liftIndex],
+                    doorState: "open",
+                  };
+                  return updatedLifts;
+                });
+
+                const doorTimeoutId = setTimeout(() => {
+                  console.log(`Lift ${liftIndex} doors are closing`);
+                  setLifts((prevLifts) => {
+                    const updatedLifts = [...prevLifts];
+                    updatedLifts[liftIndex] = {
+                      ...updatedLifts[liftIndex],
+                      doorState: "closing",
+                    };
+                    return updatedLifts;
+                  });
+
+                  setTimeout(() => {
+                    console.log(`Lift ${liftIndex} doors are closed`);
+                    setLifts((prevLifts) => {
+                      const updatedLifts = [...prevLifts];
+                      updatedLifts[liftIndex] = {
+                        ...updatedLifts[liftIndex],
+                        doorState: "closed",
+                      };
+                      return updatedLifts;
+                    });
+                  }, 2500);
+                }, 2500);
+
+                doorTimeouts.current[liftIndex] = doorTimeoutId;
+              }, 2500);
               processNextRequest();
+            }, transitionTimeout);
+
+            transitionTimeouts.current[liftIndex] = timeoutId;
+          }, 100); // Small delay to ensure state update
+        }, 2500); // Time for doors to close
+      } else {
+        // If doors are already closed, start moving immediately
+        console.log(
+          `Lift ${liftIndex} doors are already closed, moving immediately`,
+        );
+
+        lift.liftposition = -lift.chooseFloor * 101;
+        lift.transitionTime =
+          Math.abs(lift.currentFloor - lift.chooseFloor) * 2.5;
+
+        const transitionTimeout = lift.transitionTime * 1000;
+        const timeoutId = setTimeout(() => {
+          console.log(`Lift ${liftIndex} reached floor ${floor}`);
+          setLifts((prevLifts) => {
+            const updatedLifts = [...prevLifts];
+            updatedLifts[liftIndex] = {
+              ...updatedLifts[liftIndex],
+              transitioning: false,
+              currentFloor: lift.chooseFloor,
+              doorState: "opening",
+            };
+            return updatedLifts;
+          });
+
+          setTimeout(() => {
+            console.log(`Lift ${liftIndex} doors are opening`);
+            setLifts((prevLifts) => {
+              const updatedLifts = [...prevLifts];
+              updatedLifts[liftIndex] = {
+                ...updatedLifts[liftIndex],
+                doorState: "open",
+              };
+              return updatedLifts;
+            });
+
+            const doorTimeoutId = setTimeout(() => {
+              console.log(`Lift ${liftIndex} doors are closing`);
+              setLifts((prevLifts) => {
+                const updatedLifts = [...prevLifts];
+                updatedLifts[liftIndex] = {
+                  ...updatedLifts[liftIndex],
+                  doorState: "closing",
+                };
+                return updatedLifts;
+              });
+
+              setTimeout(() => {
+                console.log(`Lift ${liftIndex} doors are closed`);
+                setLifts((prevLifts) => {
+                  const updatedLifts = [...prevLifts];
+                  updatedLifts[liftIndex] = {
+                    ...updatedLifts[liftIndex],
+                    doorState: "closed",
+                  };
+                  return updatedLifts;
+                });
+              }, 2500);
             }, 2500);
+            doorTimeouts.current[liftIndex] = doorTimeoutId;
           }, 2500);
+          processNextRequest();
+        }, transitionTimeout);
 
-          doorTimeouts.current[liftIndex] = doorTimeoutId;
-        }, 2500);
-      }, transitionTimeout);
-
-      transitionTimeouts.current[liftIndex] = timeoutId;
+        transitionTimeouts.current[liftIndex] = timeoutId;
+      }
 
       return newLifts;
     });
@@ -249,6 +354,17 @@ function LiftSimulation() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div>
+        <h2>Request Queue</h2>
+        <ul>
+          {requestQueue.map((request, index) => (
+            <li key={index}>
+              Floor: {request.floor + 1}, Type: {request.type}
+            </li>
+          ))}
+        </ul>
       </div>
     </>
   );
