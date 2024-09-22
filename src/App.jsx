@@ -6,6 +6,7 @@ function LiftSimulation() {
   const [numLifts, setNumLifts] = useState("");
   const [lifts, setLifts] = useState([]);
   const [maxLifts, setMaxLifts] = useState(1);
+  const [requestQueue, setRequestQueue] = useState([]);
   const transitionTimeouts = useRef({});
   const doorTimeouts = useRef({});
   const liftMainDivRef = useRef(null);
@@ -25,6 +26,15 @@ function LiftSimulation() {
 
     return () => window.removeEventListener("resize", updateMaxLifts);
   }, []);
+
+  useEffect(() => {
+    if (
+      requestQueue.length > 0 &&
+      lifts.some((lift) => !lift.transitioning && lift.doorState === "closed")
+    ) {
+      processNextRequest();
+    }
+  }, [requestQueue, lifts]);
 
   const initializeLifts = (numLifts) => {
     console.log(`Initializing lifts with ${numLifts} lifts.`);
@@ -79,107 +89,103 @@ function LiftSimulation() {
     return closestLiftIndex;
   };
 
+  const processNextRequest = () => {
+    if (requestQueue.length > 0) {
+      const nextRequest = requestQueue[0];
+      const liftIndex = findOptimalLift(nextRequest.floor);
+
+      if (liftIndex !== null) {
+        setRequestQueue((prevQueue) => prevQueue.slice(1));
+        moveLift(liftIndex, nextRequest.floor, nextRequest.type);
+      }
+    }
+  };
+
+  const moveLift = (liftIndex, floor, type) => {
+    setLifts((prevLifts) => {
+      const newLifts = [...prevLifts];
+      const lift = newLifts[liftIndex];
+
+      lift.chooseFloor = floor + 1;
+      lift.type_ = type;
+      lift.liftposition = -lift.chooseFloor * 101;
+      lift.transitionTime =
+        Math.abs(lift.currentFloor - lift.chooseFloor) * 2.5;
+      lift.transitioning = true;
+
+      if (transitionTimeouts.current[liftIndex]) {
+        clearTimeout(transitionTimeouts.current[liftIndex]);
+      }
+
+      if (doorTimeouts.current[liftIndex]) {
+        clearTimeout(doorTimeouts.current[liftIndex]);
+      }
+
+      const transitionTimeout = lift.transitionTime * 1000;
+      const timeoutId = setTimeout(() => {
+        setLifts((prevLifts) => {
+          const updatedLifts = [...prevLifts];
+          updatedLifts[liftIndex] = {
+            ...updatedLifts[liftIndex],
+            transitioning: false,
+            currentFloor: lift.chooseFloor,
+            doorState: "opening",
+          };
+          return updatedLifts;
+        });
+
+        setTimeout(() => {
+          setLifts((prevLifts) => {
+            const updatedLifts = [...prevLifts];
+            updatedLifts[liftIndex] = {
+              ...updatedLifts[liftIndex],
+              doorState: "open",
+            };
+            return updatedLifts;
+          });
+
+          const doorTimeoutId = setTimeout(() => {
+            setLifts((prevLifts) => {
+              const updatedLifts = [...prevLifts];
+              updatedLifts[liftIndex] = {
+                ...updatedLifts[liftIndex],
+                doorState: "closing",
+              };
+              return updatedLifts;
+            });
+
+            setTimeout(() => {
+              setLifts((prevLifts) => {
+                const updatedLifts = [...prevLifts];
+                updatedLifts[liftIndex] = {
+                  ...updatedLifts[liftIndex],
+                  doorState: "closed",
+                };
+                return updatedLifts;
+              });
+              processNextRequest();
+            }, 2500);
+          }, 2500);
+
+          doorTimeouts.current[liftIndex] = doorTimeoutId;
+        }, 2500);
+      }, transitionTimeout);
+
+      transitionTimeouts.current[liftIndex] = timeoutId;
+
+      return newLifts;
+    });
+  };
+
   const handleChange = (floor, type) => {
     console.log(`Handling change. Floor: ${floor}, Type: ${type}`);
     const liftIndex = findOptimalLift(floor);
 
     if (liftIndex !== null) {
-      setLifts((prevLifts) => {
-        const newLifts = [...prevLifts];
-        const lift = newLifts[liftIndex];
-
-        if (lift.doorState !== "closed") {
-          console.log(`Lift ${liftIndex} doors are not closed. Cannot move.`);
-          return prevLifts;
-        }
-
-        console.log(`Updating lift ${liftIndex} with new values.`);
-        console.log(
-          `Current Floor: ${lift.currentFloor}, Choose Floor: ${floor + 1}`,
-        );
-
-        lift.chooseFloor = floor + 1;
-        lift.type_ = type;
-        lift.liftposition = -lift.chooseFloor * 101;
-        lift.transitionTime =
-          Math.abs(lift.currentFloor - lift.chooseFloor) * 2.5;
-        lift.transitioning = true;
-
-        console.log(
-          `Lift ${liftIndex} position updated to: ${lift.liftposition}`,
-        );
-        console.log(
-          `Lift ${liftIndex} transition time set to: ${lift.transitionTime}s`,
-        );
-
-        const transitionTimeout = lift.transitionTime * 1000;
-        console.log(
-          `Timeout for lift ${liftIndex} started, waiting ${transitionTimeout} ms`,
-        );
-
-        if (transitionTimeouts.current[liftIndex]) {
-          clearTimeout(transitionTimeouts.current[liftIndex]);
-        }
-
-        if (doorTimeouts.current[liftIndex]) {
-          clearTimeout(doorTimeouts.current[liftIndex]);
-        }
-
-        const timeoutId = setTimeout(() => {
-          console.log(`Timeout for lift ${liftIndex} completed`);
-          setLifts((prevLifts) => {
-            const updatedLifts = [...prevLifts];
-            updatedLifts[liftIndex] = {
-              ...updatedLifts[liftIndex],
-              transitioning: false,
-              currentFloor: lift.chooseFloor,
-              doorState: "opening",
-            };
-            return updatedLifts;
-          });
-
-          setTimeout(() => {
-            setLifts((prevLifts) => {
-              const updatedLifts = [...prevLifts];
-              updatedLifts[liftIndex] = {
-                ...updatedLifts[liftIndex],
-                doorState: "open",
-              };
-              return updatedLifts;
-            });
-
-            const doorTimeoutId = setTimeout(() => {
-              setLifts((prevLifts) => {
-                const updatedLifts = [...prevLifts];
-                updatedLifts[liftIndex] = {
-                  ...updatedLifts[liftIndex],
-                  doorState: "closing",
-                };
-                return updatedLifts;
-              });
-
-              setTimeout(() => {
-                setLifts((prevLifts) => {
-                  const updatedLifts = [...prevLifts];
-                  updatedLifts[liftIndex] = {
-                    ...updatedLifts[liftIndex],
-                    doorState: "closed",
-                  };
-                  return updatedLifts;
-                });
-              }, 2500);
-            }, 2500);
-
-            doorTimeouts.current[liftIndex] = doorTimeoutId;
-          }, 2500);
-        }, transitionTimeout);
-
-        transitionTimeouts.current[liftIndex] = timeoutId;
-
-        return newLifts;
-      });
+      moveLift(liftIndex, floor, type);
     } else {
-      console.log("No available lift found for the requested floor.");
+      console.log("No available lift found. Adding request to queue.");
+      setRequestQueue((prevQueue) => [...prevQueue, { floor, type }]);
     }
   };
 
